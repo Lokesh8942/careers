@@ -270,15 +270,18 @@ def search_remotive() -> list[dict]:
 RSS_FEEDS = [
     {
         "name": "Freshersworld",
-        "url":  "https://www.freshersworld.com/rss/jobs-for-freshers.xml",
+        "url":  "https://www.freshersworld.com/jobs/rss?job_category=engineering-jobs",
     },
     {
-        "name": "Naukri Fresher",
-        "url":  "https://www.naukri.com/rss/fresher-jobs.xml",
+        "name": "Shine",
+        "url":  "https://www.shine.com/rss/fresher-jobs.xml",
     },
     {
         "name": "Internshala Intern",
         "url":  "https://internshala.com/rss/internships.xml",
+      "name": "TimesJobs",
+        "url":  "https://www.timesjobs.com/candidate/jobs-in-india.html?sequence=1&startPage=1&txtKeywords=software+engineer+fresher&cboWorkExp1=0&cboWorkExp2=1&rss=1",
+    
     },
 ]
 
