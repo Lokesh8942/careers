@@ -2,8 +2,7 @@ name: Daily Career Agent
 
 on:
   schedule:
-    - cron: '30 3 * * *'   # Runs 9:00 AM IST daily (IST = UTC+5:30)
-  workflow_dispatch:         # Allows manual trigger from GitHub
+    - cron: '30 3 * * *'   # Runs 9:00 AM IST daily (IST = UTC+5:30)      # Allows manual trigger from GitHub
 
 jobs:
   run-agent:
