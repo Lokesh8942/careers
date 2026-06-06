@@ -6,9 +6,11 @@ Sources:
   • Adzuna API (free, India jobs)
   • JSearch RapidAPI (LinkedIn/Indeed scraper)
   • Remotive API (no key, remote tech jobs)
-  • RSS feeds (Internshala, Naukri, Freshersworld)
+  • Arbeitnow API (no key, remote jobs)
+  • The Muse API (no key, entry level jobs)
+  • Unstop (direct scraper)
 
-LLM    → Groq (free tier, llama-3.3-70b-versatile)
+LLM      → Groq (free tier, llama-3.3-70b-versatile)
 Delivery → Telegram Bot API (free)
 """
 
@@ -17,7 +19,6 @@ import json
 import time
 import logging
 import httpx
-import xml.etree.ElementTree as ET
 from datetime import datetime
 from dotenv import load_dotenv
 from ddgs import DDGS
@@ -97,7 +98,7 @@ SEARCH_QUERIES = [
 ]
 
 
-# ─── Source 1: DuckDuckGo Search ──────────────────────────────────────────────
+# ─── Source 1: DuckDuckGo ─────────────────────────────────────────────────────
 def search_ddg() -> list[dict]:
     all_results = []
     seen_urls   = set()
@@ -160,14 +161,14 @@ def search_adzuna() -> list[dict]:
 
             for job in data.get("results", []):
                 results.append({
-                    "title":   job.get("title", ""),
-                    "snippet": job.get("description", "")[:300],
-                    "url":     job.get("redirect_url", ""),
-                    "source":  "Adzuna",
-                    "company": job.get("company", {}).get("display_name", ""),
+                    "title":    job.get("title", ""),
+                    "snippet":  job.get("description", "")[:300],
+                    "url":      job.get("redirect_url", ""),
+                    "source":   "Adzuna",
+                    "company":  job.get("company", {}).get("display_name", ""),
                     "location": job.get("location", {}).get("display_name", ""),
                 })
-            log.info("Adzuna query '%s' → %d results", query, len(data.get("results", [])))
+            log.info("Adzuna '%s' → %d results", query, len(data.get("results", [])))
             time.sleep(1)
         except Exception as e:
             log.warning("Adzuna query '%s' failed: %s", query, e)
@@ -202,11 +203,11 @@ def search_jsearch() -> list[dict]:
         try:
             url = "https://jsearch.p.rapidapi.com/search"
             params = {
-                "query":        query,
-                "page":         "1",
-                "num_pages":    "1",
-                "country":      "in",
-                "date_posted":  "week",
+                "query":       query,
+                "page":        "1",
+                "num_pages":   "1",
+                "country":     "in",
+                "date_posted": "week",
             }
             r = httpx.get(url, headers=headers, params=params, timeout=15)
             data = r.json()
@@ -220,7 +221,7 @@ def search_jsearch() -> list[dict]:
                     "company":  job.get("employer_name", ""),
                     "location": job.get("job_city", "") + ", " + job.get("job_country", ""),
                 })
-            log.info("JSearch query '%s' → %d results", query, len(data.get("data", [])))
+            log.info("JSearch '%s' → %d results", query, len(data.get("data", [])))
             time.sleep(1)
         except Exception as e:
             log.warning("JSearch query '%s' failed: %s", query, e)
@@ -229,7 +230,7 @@ def search_jsearch() -> list[dict]:
     return results
 
 
-# ─── Source 4: Remotive API (no key needed) ───────────────────────────────────
+# ─── Source 4: Remotive API ───────────────────────────────────────────────────
 def search_remotive() -> list[dict]:
     results = []
     queries = [
@@ -257,67 +258,133 @@ def search_remotive() -> list[dict]:
                     "company":  job.get("company_name", ""),
                     "location": "Remote",
                 })
-            log.info("Remotive query '%s' → %d results", query, len(data.get("jobs", [])))
+            log.info("Remotive '%s' → %d results", query, len(data.get("jobs", [])))
             time.sleep(1)
         except Exception as e:
-            log.warning("Remotive query '%s' failed: %s", query, e)
+            log.warning("Remotive '%s' failed: %s", query, e)
 
     log.info("Remotive total: %d results", len(results))
     return results
 
 
-# ─── Source 5: RSS Feeds ──────────────────────────────────────────────────────
-RSS_FEEDS = [
-    {
-        "name": "Freshersworld",
-        "url":  "https://www.freshersworld.com/jobs/rss?job_category=engineering-jobs",
-    },
-    {
-        "name": "Shine",
-        "url":  "https://www.shine.com/rss/fresher-jobs.xml",
-    },
-    {
-        "name": "Internshala Intern",
-        "url":  "https://internshala.com/rss/internships.xml",
-      "name": "TimesJobs",
-        "url":  "https://www.timesjobs.com/candidate/jobs-in-india.html?sequence=1&startPage=1&txtKeywords=software+engineer+fresher&cboWorkExp1=0&cboWorkExp2=1&rss=1",
-    
-    },
-]
-
-def search_rss() -> list[dict]:
+# ─── Source 5: Arbeitnow API ──────────────────────────────────────────────────
+def search_arbeitnow() -> list[dict]:
     results = []
+    log.info("Arbeitnow: fetching jobs...")
+    try:
+        url = "https://www.arbeitnow.com/api/job-board-api"
+        r = httpx.get(url, timeout=15)
+        data = r.json()
 
-    log.info("RSS: fetching feeds...")
+        keywords = ["software", "backend", "frontend", "fullstack", "ml",
+                    "data", "devops", "python", "java", "engineer"]
 
-    for feed in RSS_FEEDS:
+        for job in data.get("data", [])[:50]:
+            title = job.get("title", "").lower()
+            if any(kw in title for kw in keywords):
+                results.append({
+                    "title":    job.get("title", ""),
+                    "snippet":  job.get("description", "")[:300],
+                    "url":      job.get("url", ""),
+                    "source":   "Arbeitnow",
+                    "company":  job.get("company_name", ""),
+                    "location": job.get("location", "Remote"),
+                })
+        log.info("Arbeitnow → %d relevant results", len(results))
+    except Exception as e:
+        log.warning("Arbeitnow failed: %s", e)
+
+    return results
+
+
+# ─── Source 6: The Muse API ───────────────────────────────────────────────────
+def search_themuse() -> list[dict]:
+    results = []
+    log.info("The Muse: fetching entry level jobs...")
+
+    categories = ["Software Engineer", "Data Science", "Dev & Ops"]
+
+    for category in categories:
         try:
-            r = httpx.get(feed["url"], timeout=15, follow_redirects=True)
-            root = ET.fromstring(r.text)
+            url = (
+                f"https://www.themuse.com/api/public/jobs"
+                f"?category={category.replace(' ', '%20')}&level=Entry%20Level&page=0"
+            )
+            r = httpx.get(url, timeout=15)
+            data = r.json()
 
-            items = root.findall(".//item")[:10]
-            for item in items:
-                title   = item.findtext("title", "")
-                url     = item.findtext("link", "")
-                snippet = item.findtext("description", "")[:300]
-
-                # Filter for tech/CSE relevant titles
-                keywords = ["software", "developer", "engineer", "python", "java",
-                           "backend", "frontend", "full stack", "ml", "data", "devops",
-                           "intern", "fresher", "trainee", "cse", "it"]
-                if any(kw in title.lower() for kw in keywords):
-                    results.append({
-                        "title":   title,
-                        "snippet": snippet,
-                        "url":     url,
-                        "source":  feed["name"],
-                    })
-
-            log.info("RSS %s → %d relevant results", feed["name"], len(results))
+            for job in data.get("results", []):
+                results.append({
+                    "title":    job.get("name", ""),
+                    "snippet":  job.get("contents", "")[:300],
+                    "url":      job.get("refs", {}).get("landing_page", ""),
+                    "source":   "TheMuse",
+                    "company":  job.get("company", {}).get("name", ""),
+                    "location": job.get("locations", [{}])[0].get("name", "Remote"),
+                })
+            log.info("TheMuse '%s' → %d results", category, len(data.get("results", [])))
+            time.sleep(1)
         except Exception as e:
-            log.warning("RSS feed %s failed: %s", feed["name"], e)
+            log.warning("TheMuse '%s' failed: %s", category, e)
 
-    log.info("RSS total: %d results", len(results))
+    log.info("TheMuse total: %d results", len(results))
+    return results
+
+
+# ─── Source 7: Unstop scraper ─────────────────────────────────────────────────
+def search_unstop() -> list[dict]:
+    results = []
+    log.info("Unstop: scraping jobs...")
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept":     "application/json",
+    }
+
+    queries = [
+        "software engineer",
+        "SDE intern",
+        "backend developer",
+        "data science",
+        "machine learning",
+    ]
+
+    for query in queries:
+        try:
+            url = (
+                f"https://unstop.com/api/public/opportunity/search-result"
+                f"?opportunity=jobs&searchTerm={query.replace(' ', '%20')}"
+                f"&oppStage=ALL&page=1&per_page=5"
+            )
+            r = httpx.get(url, headers=headers, timeout=15)
+            data = r.json()
+
+            for item in data.get("data", {}).get("data", []):
+                title     = item.get("title", "")
+                company   = item.get("organisation", {}).get("name", "")
+                opp_id    = item.get("id", "")
+                slug      = item.get("slug", "")
+                apply_url = f"https://unstop.com/jobs/{slug}-{opp_id}"
+                min_sal   = item.get("minSalary", "")
+                max_sal   = item.get("maxSalary", "")
+                stipend   = f"{min_sal} - {max_sal} LPA" if min_sal and max_sal else "Not disclosed"
+
+                results.append({
+                    "title":    title,
+                    "snippet":  item.get("desc", "")[:300],
+                    "url":      apply_url,
+                    "source":   "Unstop",
+                    "company":  company,
+                    "location": item.get("city", "India"),
+                    "stipend":  stipend,
+                })
+
+            log.info("Unstop '%s' → %d results", query, len(data.get("data", {}).get("data", [])))
+            time.sleep(1)
+        except Exception as e:
+            log.warning("Unstop '%s' failed: %s", query, e)
+
+    log.info("Unstop total: %d results", len(results))
     return results
 
 
@@ -331,7 +398,9 @@ def search_all_sources() -> list[dict]:
         ("Adzuna",     search_adzuna),
         ("JSearch",    search_jsearch),
         ("Remotive",   search_remotive),
-        ("RSS",        search_rss),
+        ("Arbeitnow",  search_arbeitnow),
+        ("TheMuse",    search_themuse),
+        ("Unstop",     search_unstop),
     ]
 
     for name, fn in sources:
@@ -370,7 +439,7 @@ def extract_jobs_with_groq(raw_results: list[dict]) -> dict:
 
     prompt = f"""You are a career opportunity extraction agent. Today is {today}.
 
-Below are job listings from multiple sources: DuckDuckGo, Adzuna, JSearch, Remotive, and RSS feeds.
+Below are job listings from multiple sources: DuckDuckGo, Adzuna, JSearch, Remotive, Arbeitnow, TheMuse, and Unstop.
 Extract REAL job postings and return structured data.
 
 Only include jobs that are:
@@ -398,7 +467,7 @@ Return ONLY valid JSON. No markdown. Schema:
       "stipend_or_ctc": "e.g. 25000/month or 8-12 LPA or Not disclosed",
       "description": "1-2 sentences about the role",
       "apply_url": "direct URL",
-      "source": "LinkedIn / Naukri / Internshala / Adzuna / JSearch / Remotive / Other",
+      "source": "LinkedIn / Naukri / Internshala / Adzuna / JSearch / Remotive / Unstop / Other",
       "deadline": "deadline if mentioned, else empty string"
     }}
   ],
@@ -436,7 +505,7 @@ Extract up to {SEND_TOP_N + 2} best matching jobs."""
     return data
 
 
-# ─── Telegram formatting ──────────────────────────────────────────────────────
+# ─── Telegram ─────────────────────────────────────────────────────────────────
 def escape_md(text: str) -> str:
     if not text:
         return ""
@@ -494,7 +563,7 @@ def build_telegram_messages(data: dict) -> list[str]:
 
     messages.append(
         "━━━━━━━━━━━━━━━━\n"
-        "⚡ _Powered by Career Agent \\(Groq \\+ DDG \\+ Adzuna \\+ JSearch \\+ Remotive \\+ RSS\\)_\n"
+        "⚡ _Powered by Career Agent \\(Groq \\+ DDG \\+ Adzuna \\+ JSearch \\+ Remotive \\+ Unstop\\)_\n"
         "🔁 _Runs daily at 9:00 AM IST_\n"
         "💡 _Edit agent\\.py to change roles/skills_"
     )
