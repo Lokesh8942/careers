@@ -1,13 +1,16 @@
 name: Daily Career Agent
-
 on:
   schedule:
-    - cron: '30 3 * * *'   # Runs 9:00 AM IST daily (IST = UTC+5:30)      # Allows manual trigger from GitHub
+    - cron: '30 5 * * *'   # 9:00 AM IST daily
+  workflow_dispatch:         # ← keeps manual trigger alive
+
+concurrency:
+  group: career-agent
+  cancel-in-progress: true   # prevents duplicate runs if cron delays
 
 jobs:
   run-agent:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -28,5 +31,4 @@ jobs:
           ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
           ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
           JSEARCH_API_KEY: ${{ secrets.JSEARCH_API_KEY }}
-          
         run: python agent.py
